@@ -1,1 +1,68 @@
+COMPARATIVA RESOLUCION ESPACIAL Y ESPECTRAL
+ESPACIAL
 
+// 1. Definir ubicación
+var lon = -63.18;
+var lat = -17.78; 
+Map.setCenter(lon, lat, 14);
+
+// 2. Sentinel-2 
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+    .filterBounds(Map.getCenter())
+    .filterDate('2023-01-01', '2023-12-31')
+    .sort('CLOUDY_PIXEL_PERCENTAGE')
+    .first();
+
+// 3.MODIS
+var modis = ee.ImageCollection("MODIS/061/MOD09GQ")
+    .filterDate('2023-01-01', '2023-12-31')
+    .first();
+
+// 4. Visualización
+Map.addLayer(s2, {bands: ['B4', 'B3', 'B2'], min: 0, max: 3000}, 'Sentinel-2 (10m)');
+Map.addLayer(modis, {bands: ['sur_refl_b01', 'sur_refl_b02', 'sur_refl_b01'], min: 0, max: 3000}, 'MODIS (250m)');
+
+print('Carga con exito');
+
+ESPECTRAL
+
+// 1. Ubicación de un incendio forestal
+Map.setCenter(-62.15, -15.55, 12); 
+
+// 2. Imagen con presencia de humo
+var image = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+    .filterBounds(Map.getCenter())
+    .filterDate('2023-09-01', '2023-10-15')
+    .sort('CLOUDY_PIXEL_PERCENTAGE')
+    .first();
+
+// 3. Capa 1: Color Real (Vemos el humo blanco)
+Map.addLayer(image, {bands: ['B4', 'B3', 'B2'], min: 0, max: 3000}, '1. Color Real (Ojo Humano)');
+
+// 4. Capa 2: Falso Color (SWIR - Atraviesa el humo y resalta el fuego)
+// B12: SWIR 2, B8: NIR, B4: Rojo
+Map.addLayer(image, {bands: ['B12', 'B8', 'B4'], min: 0, max: 4000}, '2. SWIR (Penetración de Humo)');
+
+print('Resolución Espectral: Cambien entre capas para ver cómo las bandas infrarrojas revelan el suelo quemado bajo el humo.');
+
+TEMPORAL
+
+// 1. Cargar colección de focos de calor de MODIS (Terra)
+var fireEvents = ee.ImageCollection("MODIS/061/MYD14A1")
+    .filterDate('2023-08-31', '2023-09-01');
+
+// 2. Seleccionar la banda correcta: FireMask
+// Valores: 7 (Baja conf), 8 (Nominal), 9 (Alta conf)
+var fireVis = fireEvents.select('FireMask').max();
+
+// 3. Visualización
+var fireParams = {
+  min: 7, 
+  max: 9, 
+  palette: ['yellow', 'orange', 'red']
+};
+
+Map.setCenter(-62.0, -16.0, 6);
+Map.addLayer(fireVis, fireParams, 'Focos de Calor MODIS (Agosto 2023)');
+
+print('Resolución Temporal: Noten cómo MODIS detecta el evento diario a nivel regional.');

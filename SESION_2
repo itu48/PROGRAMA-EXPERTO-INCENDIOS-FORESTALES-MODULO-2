@@ -1,1 +1,38 @@
+REVISION DE FIRMAS ESPECTRALES
 
+/**
+ * Monitoreo de Cicatrices de Incendio
+ * Ubicación: Santa Cruz Bolivia (Chiquitanía)
+ */
+
+// 1. Punto de interés (Coordenadas solicitadas)
+// Otra instancia (-69.40    -15.80  )
+var lon = -62.15;
+var lat = -15.55;
+var punto = ee.Geometry.Point([lon, lat]);
+
+// 2. Cargar colección de Sentinel-2 (Nivel 2A - Reflectancia de superficie)
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR")
+  .filterBounds(punto)
+  .filterDate('2024-08-01', '2024-10-30') // Ajustado a época de incendios
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
+  .median(); // Tomamos la mediana para limpiar nubes
+
+// 3. Configurar visualización: SWIR2 (B12), NIR (B8), Rojo (B4)
+// En esta combinación:
+// - El bosque sano se ve VERDE BRILLANTE (mucho NIR).
+// - Lo quemado se ve NEGRO O MARRÓN OSCURO (caída de NIR, subida de SWIR).
+var visParams = {
+  bands: ['B12', 'B8', 'B4'],
+  min: 0,
+  max: 4000,
+  gamma: 1.2
+};
+
+// 4. Centrar el mapa y añadir la capa
+Map.centerObject(punto, 12);
+Map.addLayer(s2, visParams, 'Cicatriz de Incendio (B12-B8-B4)');
+
+// 5. Instrucción para el Inspector
+print('Haz clic en la pestaña "Inspector" a la derecha y luego en el mapa');
+print('para ver los valores de reflectancia en las zonas negras vs verdes.');

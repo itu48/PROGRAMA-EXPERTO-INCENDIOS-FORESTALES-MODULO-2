@@ -36,3 +36,78 @@ Map.addLayer(s2, visParams, 'Cicatriz de Incendio (B12-B8-B4)');
 // 5. Instrucción para el Inspector
 print('Haz clic en la pestaña "Inspector" a la derecha y luego en el mapa');
 print('para ver los valores de reflectancia en las zonas negras vs verdes.');
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+REVISION DE FIRMAS ESPECTRALES EN GEE
+/**
+ * MONITOREO  INCENDIOS BOLIVIA 
+ * Área: San Matías, Santa Cruz.
+ */
+
+// 1. ZONA DE INCENDIOS GRAVES
+var lon = -58.95;
+var lat = -16.35;
+Map.setCenter(lon, lat, 11);
+
+// 2. DEFINIR TEMPORALIDAD
+var fecha_pre = ['2024-05-01', '2024-06-30'];
+var fecha_post = ['2024-09-15', '2024-11-15'];
+
+// 3. OBTENER IMÁGENES LIMPIAS (Sentinel-2)
+function procesarImagen(fechas) {
+  return ee.ImageCollection("COPERNICUS/S2_SR")
+    .filterBounds(Map.getBounds(true))
+    .filterDate(fechas[0], fechas[1])
+    .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10))
+    .median();
+}
+
+var imgPre = procesarImagen(fecha_pre);
+var imgPost = procesarImagen(fecha_post);
+
+// 4. CÁLCULO DE ÍNDICES GENERALES (Sobre la imagen quemada)
+// Vegetación (Salud y Vigor)
+var ndvi = imgPost.normalizedDifference(['B8', 'B4']).rename('NDVI');
+var evi = imgPost.expression(
+    '2.5 * ((NIR - RED) / (NIR + 6 * RED - 7.5 * BLUE + 1))', {
+      'NIR': imgPost.select('B8'),
+      'RED': imgPost.select('B4'),
+      'BLUE': imgPost.select('B2')
+}).rename('EVI');
+
+// Agua e Hidrología
+var ndwi = imgPost.normalizedDifference(['B3', 'B8']).rename('NDWI');
+var ndmi = imgPost.normalizedDifference(['B8', 'B11']).rename('NDMI');
+
+// Geológicos / Suelos
+var ndsi = imgPost.normalizedDifference(['B3', 'B11']).rename('NDSI'); // Nieve/Suelo
+var ndbi = imgPost.normalizedDifference(['B11', 'B8']).rename('NDBI'); // Construido/Desnudo
+
+// 5. ANÁLISIS ESPECÍFICO DE QUEMA (NBR y dNBR)
+var nbrPre = imgPre.normalizedDifference(['B8', 'B12']).rename('NBR_Pre');
+var nbrPost = imgPost.normalizedDifference(['B8', 'B12']).rename('NBR_Post');
+
+// Cálculo de Severidad (Diferencia)
+var dnbr = nbrPre.subtract(nbrPost).rename('dNBR');
+
+// 6. VISUALIZACIÓN EN EL MAPA
+// Imagen base para ver las cicatrices reales (negro/marrón)
+Map.addLayer(imgPost, {bands: ['B12', 'B8', 'B4'], min: 0, max: 3500}, '1. Imagen Post-Fuego (B12-B8-B4)');
+
+// Añadir índices generales
+Map.addLayer(ndvi, {min: 0, max: 0.8, palette: ['red', 'yellow', 'green']}, '2. Salud (NDVI)');
+Map.addLayer(evi, {min: 0, max: 0.8, palette: ['red', 'yellow', 'green']}, '3. Vigor (EVI)');
+Map.addLayer(ndwi, {min: -0.5, max: 0.5, palette: ['white', 'blue']}, '4. Agua (NDWI)');
+Map.addLayer(ndmi, {min: -0.2, max: 0.4, palette: ['brown', 'white', 'blue']}, '5. Humedad Hoja (NDMI)');
+Map.addLayer(ndbi, {min: -0.5, max: 0.5, palette: ['blue', 'white', 'red']}, '6. Suelo/Urbano (NDBI)');
+
+// Índices de Incendio al final
+Map.addLayer(nbrPost, {min: -0.2, max: 0.5, palette: ['green', 'yellow', 'red', 'black']}, '7. Cicatriz (NBR)');
+
+// dNBR: Clasificación de severidad
+var vis_dnbr = {
+  min: -0.1, 
+  max: 0.7, 
+  palette: ['ffffff', '7ff07f', 'ffff00', 'ffaa00', 'ff0000', '7a0000']
+};
+Map.addLayer(dnbr, vis_dnbr, '8. SEVERIDAD FINAL (dNBR)');

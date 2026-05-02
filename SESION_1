@@ -23,6 +23,7 @@ Map.addLayer(s2, {bands: ['B4', 'B3', 'B2'], min: 0, max: 3000}, 'Sentinel-2 (10
 Map.addLayer(modis, {bands: ['sur_refl_b01', 'sur_refl_b02', 'sur_refl_b01'], min: 0, max: 3000}, 'MODIS (250m)');
 
 print('Carga con exito');
+----------------------------------------------------------------------------------------------------------------------
 
 ESPECTRAL
 
@@ -44,6 +45,7 @@ Map.addLayer(image, {bands: ['B4', 'B3', 'B2'], min: 0, max: 3000}, '1. Color Re
 Map.addLayer(image, {bands: ['B12', 'B8', 'B4'], min: 0, max: 4000}, '2. SWIR (Penetración de Humo)');
 
 print('Resolución Espectral: Cambien entre capas para ver cómo las bandas infrarrojas revelan el suelo quemado bajo el humo.');
+--------------------------------------------------------------------------------------------------------------------------------------
 
 TEMPORAL
 

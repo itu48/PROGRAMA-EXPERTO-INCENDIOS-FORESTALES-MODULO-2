@@ -1,1 +1,224 @@
+COMPARATIVA ESPACIAL 
 
+// COMPARACIÓN 1: NITIDEZ ESPACIAL
+var roi = ee.Geometry.Point([-63.15, -18.42]); // Ejemplo cerca de Santa Cruz
+Map.centerObject(roi, 15);
+
+// Landsat 8 (30 metros) - Banda NIR para vegetación
+var l8 = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .filterBounds(roi).filterDate('2023-01-01', '2023-12-31').median();
+var l8_scaled = l8.select('SR_B5').multiply(0.0000275).add(-0.2);
+
+// Sentinel-2 (10 metros) - Banda NIR para vegetación
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterBounds(roi).filterDate('2023-01-01', '2023-12-31').median();
+
+Map.addLayer(l8_scaled, {min: 0, max: 0.4}, 'Landsat 8 NIR (30m)');
+Map.addLayer(s2.select('B8'), {min: 0, max: 4000}, 'Sentinel-2 NIR (10m)');
+
+-----------------------------------------------------------------------------------------------------------------
+FOCOS DE CALOR
+// COMPARACIÓN 2: FOCOS DE CALOR (SOLO LANDSAT)
+var incendioActivo = ee.Geometry.Point([-59.12, -18.25]); 
+Map.centerObject(incendioActivo, 12);
+
+var landsatTermico = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .filterBounds(incendioActivo)
+  .filterDate('2023-09-01', '2023-10-01')
+  .sort('CLOUD_COVER')
+  .first();
+
+// La banda B10 es la temperatura de brillo
+var termicoViz = {bands: ['ST_B10'], min: 28000, max: 31000, palette: ['blue', 'yellow', 'red']};
+
+Map.addLayer(landsatTermico, termicoViz, 'Mapa de Calor (Landsat B10)');
+
+--------------------------------------------------------------------------------------------------------------
+
+COLOR VERDADERO
+// CASO 1: COLOR VERDADERO (B4, B3, B2)
+var area = ee.Geometry.Point([-61.5, -15.5]);
+Map.centerObject(area, 12);
+
+var s2_rgb = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterBounds(area).filterDate('2023-05-01', '2023-06-01').median();
+
+var l8_rgb = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .filterBounds(area).filterDate('2023-05-01', '2023-06-01').median();
+var l8_rgb_scaled = l8_rgb.select('SR_B.*').multiply(0.0000275).add(-0.2);
+
+Map.addLayer(l8_rgb_scaled, {bands:['SR_B4','SR_B3','SR_B2'], min:0, max:0.2}, 'Landsat 8 - Color Verdadero');
+Map.addLayer(s2_rgb, {bands:['B4','B3','B2'], min:0, max:2500}, 'Sentinel-2 - Color Verdadero');
+---------------------------------------------------------------------------------------------------------------
+Vegetación NIR (Precisión de bordes)
+/**
+ * CASO 2: INFRA ROJO CERCANO (NIR)
+ * Objetivo: Comparar nitidez en bordes de vegetación
+ */
+var roi = ee.Geometry.Point([-62.21, -16.35]); // Área con fragmentación boscosa
+Map.centerObject(roi, 15);
+
+// Landsat 8 - Banda 5 (NIR - 30m)
+var l8 = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .filterBounds(roi).filterDate('2023-01-01', '2023-12-31').sort('CLOUD_COVER').first();
+var l8_nir = l8.select('SR_B5').multiply(0.0000275).add(-0.2);
+
+// Sentinel-2 - Banda 8 (NIR - 10m)
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterBounds(roi).filterDate('2023-01-01', '2023-12-31').sort('CLOUDY_PIXEL_PERCENTAGE').first();
+var s2_nir = s2.select('B8');
+
+Map.addLayer(l8_nir, {min: 0, max: 0.4}, '1. Landsat NIR (30m)');
+Map.addLayer(s2_nir, {min: 0, max: 4000}, '2. Sentinel-2 NIR (10m)');
+---------------------------------------------------------------------------------------------------------------
+Cicatrices de Quema (SWIR)
+/**
+ * CASO 3: CICATRICES DE QUEMA (Falso Color SWIR)
+ * Combinación: SWIR2, NIR, RED
+ */
+var areaQuema = ee.Geometry.Point([-60.84, -15.54]);
+Map.centerObject(areaQuema, 12);
+
+// Landsat 8 (B7, B5, B4)
+var l8_img = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .filterBounds(areaQuema).filterDate('2023-08-01', '2023-11-01').median();
+var l8_scaled = l8_img.select('SR_B.*').multiply(0.0000275).add(-0.2);
+
+// Sentinel-2 (B12, B8, B4)
+var s2_img = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterBounds(areaQuema).filterDate('2023-08-01', '2023-11-01').median();
+
+Map.addLayer(l8_scaled, {bands:['SR_B7','SR_B5','SR_B4'], min:0, max:0.3}, 'Landsat SWIR (Cicatrices)');
+Map.addLayer(s2_img, {bands:['B12','B8','B4'], min:0, max:3500}, 'Sentinel-2 SWIR (Cicatrices)');
+---------------------------------------------------------------------------------------------------------------
+Salud de la Vegetación (Red Edge)
+/**
+ * CASO 4: RED EDGE (SÓLO SENTINEL-2)
+ * Objetivo: Detectar vigor y estrés hídrico
+ */
+var bosqueSano = ee.Geometry.Point([-61.45, -15.90]);
+Map.centerObject(bosqueSano, 13);
+
+var s2_redge = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterBounds(bosqueSano).filterDate('2024-01-01', '2024-04-01').median();
+
+// Visualización usando B7 (Red Edge 3), B6 (Red Edge 2) y B5 (Red Edge 1)
+Map.addLayer(s2_redge, {bands:['B7','B6','B5'], min:500, max:4000}, 'Sentinel-2 Vigor Red Edge');
+---------------------------------------------------------------------------------------------------------------
+TERMICO
+
+/**
+ * CASO 5: TÉRMICO CON INSPECTOR INTEGRADO
+ */
+var incendioActivo = ee.Geometry.Point([-59.12, -18.25]);
+Map.centerObject(incendioActivo, 12);
+
+var l8_tirs = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .filterBounds(incendioActivo)
+  .filterDate('2023-09-01', '2023-10-15')
+  .sort('CLOUD_COVER')
+  .first();
+
+var tempC = l8_tirs.select('ST_B10')
+  .multiply(0.00341802)
+  .add(149.0)
+  .subtract(273.15);
+
+Map.addLayer(tempC, {
+  min: 25, 
+  max: 65, 
+  palette: ['blue', 'yellow', 'orange', 'red']
+}, 'Temperatura de Superficie (°C)');
+
+// --- 1. RESULTADO  ---
+var inspector = ui.Panel({
+  style: {position: 'top-right', width: '200px'}
+});
+inspector.add(ui.Label('Haz clic en el mapa', {color: 'gray'}));
+Map.add(inspector);
+
+// --- 2. CONFIGURACIÓN DEL CURSOR Y EVENTO CLICK ---
+Map.style().set('cursor', 'crosshair');
+
+Map.onClick(function(coords) {
+  // Limpiar el panel antes de mostrar nuevo resultado
+  inspector.clear();
+  inspector.add(ui.Label('Cargando...', {color: 'gray'}));
+  
+  var punto = ee.Geometry.Point(coords.lon, coords.lat);
+  
+  // Obtener el valor
+  var muestra = tempC.reduceRegion({
+    reducer: ee.Reducer.first(),
+    geometry: punto,
+    scale: 30
+  });
+  
+  // Usar evaluate para que la interfaz no se congele
+  muestra.evaluate(function(resultado) {
+    inspector.clear();
+    var tempVal = resultado.ST_B10;
+    
+    if (tempVal !== null) {
+      inspector.add(ui.Label({
+        value: 'Temp: ' + tempVal.toFixed(2) + ' °C',
+        style: {fontWeight: 'bold', fontSize: '18px', color: 'red'}
+      }));
+      inspector.add(ui.Label('Lat: ' + coords.lat.toFixed(4)));
+      inspector.add(ui.Label('Lon: ' + coords.lon.toFixed(4)));
+    } else {
+      inspector.add(ui.Label('Sin datos en este punto'));
+    }
+  });
+});
+
+// --- 3. LEYENDA  ---
+var leyenda = ui.Panel({style: {position: 'bottom-left', padding: '8px'}});
+leyenda.add(ui.Label('Temperatura (°C)', {fontWeight: 'bold'}));
+var imagenLeyenda = ee.Image.pixelLonLat().select('longitude').visualize({
+  min: 0, max: 1, palette: ['blue', 'yellow', 'orange', 'red']
+});
+leyenda.add(ui.Thumbnail({image: imagenLeyenda, params: {bbox:'0,0,10,100', dimensions:'200x15'}}));
+var etiquetas = ui.Panel({
+  widgets: [ui.Label('25°C'), ui.Label({style: {stretch: 'horizontal'}}), ui.Label('65°C')],
+  layout: ui.Panel.Layout.flow('horizontal')
+});
+leyenda.add(etiquetas);
+Map.add(leyenda);
+---------------------------------------------------------------------------------------------------------------
+MULTITEMPORAL
+/**
+ * COMPARACIÓN TEMPORAL MULTISATÉLITE
+ * Área: Chiquitanía, Bolivia (Temporada crítica de incendios 2023)
+ */
+
+var area = ee.Geometry.Point([-60.7, -16.2]);
+var inicio = '2023-08-01';
+var fin = '2023-08-31';
+
+Map.centerObject(area, 10);
+
+// 1. MODIS (Terra & Aqua combinado) - Resolución: 250m-1km / Frecuencia: DIARIA
+var modis = ee.ImageCollection("MODIS/061/MOD09GA")
+  .filterBounds(area).filterDate(inicio, fin);
+
+// 2. VIIRS (Suomi NPP) - Resolución: 375m-750m / Frecuencia: DIARIA (Gran capacidad térmica)
+var viirs = ee.ImageCollection("NOAA/VIIRS/001/VNP09GA")
+  .filterBounds(area).filterDate(inicio, fin);
+
+// 3. SENTINEL-2 (A & B) - Resolución: 10m-20m / Frecuencia: ~5 DÍAS
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterBounds(area).filterDate(inicio, fin);
+
+// 4. LANDSAT (8 & 9 combinado) - Resolución: 30m / Frecuencia: ~8 DÍAS
+var landsat = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+  .merge(ee.ImageCollection("LANDSAT/LC09/C02/T1_L2"))
+  .filterBounds(area).filterDate(inicio, fin);
+
+// RESULTADOS EN CONSOLA
+print('--- DISPONIBILIDAD EN 1 MES (AGOSTO 2023) ---');
+print('MODIS (Diario):', modis.size());
+print('VIIRS (Diario):', viirs.size());
+print('Sentinel-2 (5 días):', s2.size());
+print('Landsat 8+9 (8 días):', landsat.size());
+---------------------------------------------------------------------------------------------------------------

@@ -1,3 +1,29 @@
+FUNCIONES MAS USADAS
+1. Filtros y Selección
+filterBounds(geometry): Recorta la colección de datos solo al área geográfica de interés
+filterDate('2023-08-01', '2023-10-31'): Selecciona el rango temporal específico
+filterMetadata('CLOUDY_PIXEL_PERCENTAGE', 'less_than', 10): Filtra por metadatos, elimina imágenes con demasiadas nubes para obtener una visión limpia del suelo.
+select(['B8', 'B4']): Selecciona solo las bandas necesarias para el análisis
+
+2. Operaciones Matemáticas y Reducción
+median(): Crea una imagen compuesta tomando el valor mediano de cada píxel en la colección. Es excelente para eliminar nubes residuales.
+normalizedDifference(['NIR', 'Red']): El comando estándar para calcular índices como el NDVI o el NBR (índice de quema).
+multiply() / add() / divide(): Usados frecuentemente para aplicar factores de escala (especialmente en Landsat 8/9 y MODIS) y convertir datos crudos a valores de reflectancia.
+
+3. Visualización y Análisis en el Mapa
+Map.addLayer(object, visParams, name): El comando más usado para mostrar capas en el mapa con parámetros de color, brillo y bandas.
+Map.centerObject(object, zoom): Centra automáticamente la vista del mapa en el área de estudio.
+print(object): Muestra información del objeto (tamaño de la colección, bandas, fechas) en el panel derecho de la consola.
+
+4. Manipulación de Colecciones
+merge(collection): Une dos colecciones de imágenes (por ejemplo, Landsat 8 y Landsat 9) para aumentar la frecuencia de datos disponibles.
+sort('system:time_start'): Ordena la colección cronológicamente para crear series temporales.
+first(): Selecciona la imagen más reciente o la de mejor calidad según el criterio de ordenamiento previo.
+
+5. Exportación de Resultados
+Export.image.toDrive(): Envía la imagen procesada directamente a tu Google Drive en formato GeoTIFF.
+Export.table.toDrive(): Útil para exportar estadísticas de áreas quemadas en formato CSV o Excel.
+---------------------------------------------------------------------------------------------------------------
 COMPARATIVA ESPACIAL 
 
 // COMPARACIÓN 1: NITIDEZ ESPACIAL

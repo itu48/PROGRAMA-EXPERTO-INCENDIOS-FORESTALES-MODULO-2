@@ -1,1 +1,22 @@
+1.
+// Definir un punto de interés referencial (ej. Zona afectada en el Oriente/Valles)
+var aoi = ee.Geometry.Point([-62.50, -16.50]).buffer(30000); // Radio de 30 km
+Map.centerObject(aoi, 10);
 
+// 1. Cargar la colección de focos de calor FIRMS de la NASA
+var firms = ee.ImageCollection('FIRMS')
+  .filterBounds(aoi)
+  .filterDate('2025-08-01', '2025-10-30'); // Ajustar al año y meses del evento
+
+// 2. Seleccionar la banda de temperatura de brillo (T21) que detecta el fuego activo
+var focosCalor = firms.select('T21');
+
+// 3. Paleta de colores para resaltar la intensidad del fuego
+var firmedVis = {
+  min: 300,
+  max: 350,
+  palette: ['yellow', 'orange', 'red']
+};
+
+// 4. Mostrar en el mapa para identificar los días críticos
+Map.addLayer(focosCalor, firmedVis, 'Focos de Calor Activos (FIRMS)');

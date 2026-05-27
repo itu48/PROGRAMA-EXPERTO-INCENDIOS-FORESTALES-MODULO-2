@@ -1,4 +1,4 @@
-1.
+1: Identificar evento
 // Definir un punto de interés referencial (ej. Zona afectada en el Oriente/Valles)
 var aoi = ee.Geometry.Point([-62.50, -16.50]).buffer(30000); // Radio de 30 km
 Map.centerObject(aoi, 10);
@@ -20,3 +20,5 @@ var firmedVis = {
 
 // 4. Mostrar en el mapa para identificar los días críticos
 Map.addLayer(focosCalor, firmedVis, 'Focos de Calor Activos (FIRMS)');
+-----------------------------------------------------------------------------------------------------
+2: Filtro y Fijación de Imágenes (Pre y Post-Fuego)

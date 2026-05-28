@@ -21,4 +21,136 @@ var firmedVis = {
 // 4. Mostrar en el mapa para identificar los días críticos
 Map.addLayer(focosCalor, firmedVis, 'Focos de Calor Activos (FIRMS)');
 -----------------------------------------------------------------------------------------------------
-2: Filtro y Fijación de Imágenes (Pre y Post-Fuego)
+2: Filtro y Fijación de Imágenes (Pre y Post-Fuego)------------Continuamos con el codigo 1
+// Cargar colección de Sentinel-2 L2A
+var s2 = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED');
+
+// --- PASO A: FIJAR LA POST-IMAGEN (Inmediatamente tras la extinción) ---
+var postFuegoCompuesto = s2
+  .filterBounds(aoi)
+  .filterDate('2025-10-15', '2025-11-05') // Rango posterior a la extinción
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 15)) // Filtro estricto de nubes
+  .median() // Reductor estadístico para limpiar nubes residuales
+  .clip(aoi);
+
+// --- PASO B: FIJAR LA PRE-IMAGEN (Línea Base - Época seca temprana) ---
+var preFuegoCompuesto = s2
+  .filterBounds(aoi)
+  .filterDate('2025-06-01', '2025-07-15') // Época seca temprana para mitigar la sequía estacional
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 15))
+  .median()
+  .clip(aoi);
+
+// Visualización en Falso Color Infrarrojo (SWIR/NIR/Red) óptimo para ver cicatrices de quema
+var visS2 = {bands: ['B12', 'B8', 'B4'], min: 500, max: 4000};
+
+Map.addLayer(preFuegoCompuesto, visS2, '1. Imagen Pre-Fuego (Línea Base)');
+Map.addLayer(postFuegoCompuesto, visS2, '2. Imagen Post-Fuego (Cicatriz oscura)');
+----------------------------------------------------------------------------------------------------
+3: Álgebra Raster, Cálculo de Índices ($NBR$ y $dNBR$) y Clasificación------------Continuamos con el codigo 2
+
+
+// a. CÁLCULO DE ÍNDICES (NBR PRE Y POST FUEGO)
+
+// Calcular NBR para la fase Pre-Fuego (B8 = NIR, B12 = SWIR 2)
+var nbrPre = preFuegoCompuesto.normalizedDifference(['B8', 'B12']).rename('nbr_pre');
+
+// Calcular NBR para la fase Post-Fuego
+var nbrPost = postFuegoCompuesto.normalizedDifference(['B8', 'B12']).rename('nbr_post');
+
+// Calcular el dNBR (Diferencia de NBR) para aislar el cambio
+var dNbr = nbrPre.subtract(nbrPost).rename('dnbr');
+
+
+// b. CLASIFICACIÓN DE SEVERIDAD (ESTÁNDAR OFICIAL USGS)
+
+var severidad = dNbr.expression(
+  "(b('dnbr') < 0.1) ? 1" +                          // Regeneración / No afectado
+  ": (b('dnbr') >= 0.1 && b('dnbr') < 0.27) ? 2" +    // Severidad Baja
+  ": (b('dnbr') >= 0.27 && b('dnbr') < 0.44) ? 3" +   // Severidad Moderada-Baja
+  ": (b('dnbr') >= 0.44 && b('dnbr') < 0.66) ? 4" +   // Severidad Moderada-Alta
+  ": 5"                                               // Severidad Alta
+).rename('severidad_incendio');
+
+
+// c. CONFIGURACIÓN VISUAL (PALETA OFICIAL USGS)
+
+
+// Paleta oficial de la escala de severidad dNBR del USGS
+var paletaSeveridad = {
+  min: 1,
+  max: 5,
+  palette: [
+    '79ca7d', // 1. No Afectado / Rebrotes (Verde)
+    'fcedcd', // 2. Severidad Baja (Amarillo muy claro/Crema)
+    'f4ca04', // 3. Severidad Moderada-Baja (Amarillo)
+    'e67e22', // 4. Severidad Moderada-Alta (Naranja)
+    '962d1f'  // 5. Severidad Alta (Rojo oscuro / Ginda)
+  ]
+};
+
+// Desplegar capas en el mapa de Earth Engine
+Map.addLayer(dNbr, {min: -0.1, max: 0.7, palette: ['blue', 'white', 'red']}, '3. dNBR Continuo');
+Map.addLayer(severidad, paletaSeveridad, '4. Clasificación de Severidad USGS');
+
+
+// d. CREACIÓN DE LA LEYENDA AUTOMÁTICA EN EL MAPA
+
+
+// Crear el contenedor principal de la leyenda
+var leyenda = ui.Panel({
+  style: {
+    position: 'bottom-left',
+    padding: '8px 15px'
+  }
+});
+
+// Título de la leyenda
+var tituloLeyenda = ui.Label({
+  value: 'Severidad del Incendio (USGS)',
+  style: {
+    fontWeight: 'bold',
+    fontSize: '20px',
+    margin: '0 0 4px 0',
+    padding: '0'
+  }
+});
+leyenda.add(tituloLeyenda);
+
+// Función interna para crear cada fila de la leyenda (color + texto)
+var crearFila = function(color, texto) {
+  var cuadroColor = ui.Label({
+    style: {
+      backgroundColor: '#' + color,
+      padding: '10px',
+      margin: '0 6px 4px 0'
+    }
+  });
+  
+  var descripcion = ui.Label({
+    value: texto,
+    style: {margin: '0 0 4px 0'}
+  });
+  
+  return ui.Panel({
+    widgets: [cuadroColor, descripcion],
+    layout: ui.Panel.Layout.Flow('horizontal')
+  });
+};
+
+// Definir los nombres que saldrán en la leyenda
+var nombresCategorias = [
+  'No Afectado / Regeneración',
+  'Severidad Baja',
+  'Severidad Moderada-Baja',
+  'Severidad Moderada-Alta',
+  'Severidad Alta'
+];
+
+// Añadir los colores y nombres al panel de la leyenda
+for (var i = 0; i < 5; i++) {
+  leyenda.add(crearFila(paletaSeveridad.palette[i], nombresCategorias[i]));
+}
+
+// Agregar de forma efectiva la leyenda a la pantalla
+Map.add(leyenda);

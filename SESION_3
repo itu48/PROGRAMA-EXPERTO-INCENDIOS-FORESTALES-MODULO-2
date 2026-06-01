@@ -1,29 +1,89 @@
-FUNCIONES MAS USADAS
-1. Filtros y Selección
-filterBounds(geometry): Recorta la colección de datos solo al área geográfica de interés
-filterDate('2023-08-01', '2023-10-31'): Selecciona el rango temporal específico
-filterMetadata('CLOUDY_PIXEL_PERCENTAGE', 'less_than', 10): Filtra por metadatos, elimina imágenes con demasiadas nubes para obtener una visión limpia del suelo.
-select(['B8', 'B4']): Selecciona solo las bandas necesarias para el análisis
+// ==========================================
+// SECCIÓN 1: CONFIGURACIÓN INICIAL
+// ==========================================
 
-2. Operaciones Matemáticas y Reducción
-median(): Crea una imagen compuesta tomando el valor mediano de cada píxel en la colección. Es excelente para eliminar nubes residuales.
-normalizedDifference(['NIR', 'Red']): El comando estándar para calcular índices como el NDVI o el NBR (índice de quema).
-multiply() / add() / divide(): Usados frecuentemente para aplicar factores de escala (especialmente en Landsat 8/9 y MODIS) y convertir datos crudos a valores de reflectancia.
+// 1.1. Definir un punto geográfico de interés (Ejemplo: un bosque o zona agrícola)
+// Nota: Los alumnos pueden usar la herramienta de dibujo (Geometry) o definirlo por coordenadas
+var longitud = -68.1193; // Cambiar por tu zona de estudio
+var latitud = -16.4897;
+var punto = ee.Geometry.Point([longitud, latitud]);
 
-3. Visualización y Análisis en el Mapa
-Map.addLayer(object, visParams, name): El comando más usado para mostrar capas en el mapa con parámetros de color, brillo y bandas.
-Map.centerObject(object, zoom): Centra automáticamente la vista del mapa en el área de estudio.
-print(object): Muestra información del objeto (tamaño de la colección, bandas, fechas) en el panel derecho de la consola.
+// 1.2. Cargar la colección de imágenes de Sentinel-2 (Nivel 2A)
+var sentinelColeccion = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED');
 
-4. Manipulación de Colecciones
-merge(collection): Une dos colecciones de imágenes (por ejemplo, Landsat 8 y Landsat 9) para aumentar la frecuencia de datos disponibles.
-sort('system:time_start'): Ordena la colección cronológicamente para crear series temporales.
-first(): Selecciona la imagen más reciente o la de mejor calidad según el criterio de ordenamiento previo.
+// Centrar el mapa en nuestro punto de interés con un zoom de 10
+Map.centerObject(punto, 10);
 
-5. Exportación de Resultados
-Export.image.toDrive(): Envía la imagen procesada directamente a tu Google Drive en formato GeoTIFF.
-Export.table.toDrive(): Útil para exportar estadísticas de áreas quemadas en formato CSV o Excel.
----------------------------------------------------------------------------------------------------------------
+// ==========================================
+// SECCIÓN 2: FILTROS Y SELECCIÓN
+// ==========================================
+
+// 2.1. Filtrar por límites geográficos (filterBounds)
+var coleccionFiltrada = sentinelColeccion.filterBounds(punto);
+
+// 2.2. Filtrar por rango de fechas (filterDate) - Temporada seca para evitar nubes
+var coleccionFechas = coleccionFiltrada.filterDate('2025-05-01', '2025-09-30');
+
+// 2.3. Filtrar por porcentaje de nubes en los metadatos (Menos del 10%)
+var coleccionLimpia = coleccionFechas.filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 10));
+
+print("Cantidad de imágenes encontradas tras los filtros:", coleccionLimpia.size());
+
+// ==========================================
+// SECCIÓN 3: CÁLCULO, REDUCCIÓN Y VISUALIZACIÓN
+// ==========================================
+
+// 3.1. Aplicar el reductor de Mediana para crear un mosaico limpio
+var mosaicoMediano = coleccionLimpia.median();
+
+// 3.2. Seleccionar bandas para combinación de Color Verdadero (B4, B3, B2)
+var colorVerdadero = mosaicoMediano.select(['B4', 'B3', 'B2']);
+
+// 3.3. Configurar parámetros de visualización en el mapa
+var visParamRGB = {
+  min: 0.0,
+  max: 3000.0, // Ajuste de brillo para reflectancia de Sentinel-2
+  bands: ['B4', 'B3', 'B2']
+};
+
+// Mostrar en el mapa
+Map.addLayer(colorVerdadero, visParamRGB, '1. Mosaico Color Verdadero');
+// ==========================================
+// SECCIÓN 4: CÁLCULO DEL ÍNDICE NDVI
+// ==========================================
+
+// 4.1. Calcular NDVI usando la función automatizada de GEE
+var ndvi = mosaicoMediano.normalizedDifference(['B8', 'B4']).rename('NDVI');
+
+// 4.2. Definir una paleta de colores (Rojo = Suelo/Desnudo, Amarillo = Poca vegetación, Verde = Mucha vegetación)
+var paletaNDVI = {
+  min: 0,
+  max: 0.8,
+  palette: ['#FFFFFF', '#CE7E3B', '#E11406', '#E97411', '#f1c40f', '#85c1E9', '#2ecc71', '#27ae60', '#114C11']
+};
+
+// Mostrar NDVI en el mapa
+Map.addLayer(ndvi, paletaNDVI, '2. Índice NDVI');
+
+// ==========================================
+// SECCIÓN 5: EXPORTACIÓN DE PRODUCTOS
+// ==========================================
+
+// 5.1. Exportar el mapa de NDVI en formato GeoTIFF para usar en QGIS o ArcGIS
+Export.image.toDrive({
+  image: ndvi,
+  description: 'Proyecto_GEE_S2_NDVI',
+  scale: 10, // Resolución espacial nativa de Sentinel-2 (10 metros por píxel)
+  region: punto.buffer(5000).bounds(), // Exporta un área de 5km alrededor del punto
+  fileFormat: 'GeoTIFF',
+  maxPixels: 1e9
+});
+
+print("¡Código ejecutado! Ve a la pestaña 'Tasks' a la derecha para iniciar la exportación.");
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------
 COMPARATIVA ESPACIAL 
 
 // COMPARACIÓN 1: NITIDEZ ESPACIAL
